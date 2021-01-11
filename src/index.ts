@@ -1,79 +1,79 @@
-import fetch from 'node-fetch';
-import { Telegraf } from 'telegraf';
-import { Keyboard } from 'telegram-keyboard';
-import dotenv from 'dotenv';
-
+import dotenv from "dotenv";
 dotenv.config({
-  path: require('path').resolve(
+  path: require("path").resolve(
     process.cwd(),
-    process.env.NODE_ENV === 'prod' ? '.env' : '.env.dev'
+    process.env.NODE_ENV === "prod" ? ".env" : ".env.dev"
   ),
 });
+import { Telegraf, Context } from "telegraf";
+import { Keyboard } from "telegram-keyboard";
+import fs, { createReadStream } from "fs";
+import https  from "https";
+
 
 const bot = new Telegraf(process.env.BOT_TOKEN!);
 
-bot.command('/menu', async ({ reply }) => {
+bot.catch((err: any, ctx: Context) => {
+  console.log(`Ooops, encountered an error for ${ctx.updateType}`, err);
+});
+
+bot.command("/menu", async ({ reply }) => {
   const keyboard = Keyboard.make([
-    ['фразу', 'шутку'], // First row
-    ['привет', 'пока'], // Second row
+    ["фразу", "шутку"], // First row
+    ["привет", "пока"], // Second row
   ]);
 
-  reply('Пацанское меню', keyboard.reply());
+  reply("Пацанское меню", keyboard.reply());
   // await reply('Simple inline keyboard', keyboard.inline());
 });
 
-bot.hears('фразу', (ctx) => {
-  const array = ['Я не ожидал от тебя брат'];
-
-  const randomNum = Math.floor(Math.random() * array?.length);
-
-  ctx.reply(array[randomNum]);
-});
-
-bot.hears('шутку', (ctx) => {
-  const array = [
-    'Аскар тащит в доту',
-    'Архат, сядь на котак',
-    'Э, иди нах',
-    'Апай, можно пятерку. Ну, апай !!!',
-    'Россия ждет',
-  ];
-  const randomNum = Math.floor(Math.random() * array?.length);
-
-  ctx.reply(array[randomNum]);
-});
-
-bot.hears(/привет|ку|как дела|калай/i, (ctx) => {
-  ctx.reply('Че тааааам!!!');
-});
-
-bot.hears(/росси/i, (ctx) => {
-  ctx.reply('Россия россия!!!');
-});
-
-bot.hears(/^пока$/i, (ctx) => {
-  ctx.reply('Давай до свидания');
-});
-
-bot.command('/go', (ctx) => {
-  ctx.reply('get out');
-});
-
 bot.start((ctx) => {
-  ctx.reply('Welcome');
+  ctx.reply("Welcome");
 });
 
-bot.command('/quote', async (ctx) => {
-  const res = await fetch('https://type.fit/api/quotes');
-  const data = await res.json();
-  const randomNum = Math.floor(Math.random() * data?.length);
-  const quote = `
-    ${data[randomNum]?.text} ${data[randomNum]?.author}
-  `;
+bot.command("/quote", async (ctx) => {
+  const today = new Date();
 
-  ctx.reply(quote);
+  const date = `${today.getDate()}-${
+    today.getMonth() + 1
+  }-${today.getFullYear()}`;
+
+  const fileName = `quotes-${date}.json`;
+
+  if (!fs.existsSync(fileName)) {
+    console.log("exists");
+    return;
+  } else {
+    const wStream = fs.createWriteStream(fileName, {
+      flags: "a",
+      autoClose: true,
+    });
+
+    const req = https.request(
+      { hostname: "type.fit", path: "/api/quotes", port: 443, method: "GET" },
+      (res) => {
+        res.on("data", (chunk: Buffer) => {
+          wStream.write(chunk.toString());
+        });
+      }
+    );
+
+    req.on("error", (error) => {
+      console.error(error);
+    });
+
+    req.end(() => {
+      console.log('ended');
+      
+      ctx.reply("quote");
+    });
+  }
+
+  const rSteam = createReadStream(fileName, { autoClose: true });
+
+  rSteam.on("data", (chunk: Buffer) => {
+    console.log(chunk.length);
+  });
 });
-
-bot.hears(/^hi$/i, (ctx) => ctx.reply('Hey there'));
 
 bot.launch();
